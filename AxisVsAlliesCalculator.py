@@ -17,13 +17,15 @@ class Player:
         self.infantry = 0
         self.artillery = 0
         self.tank = 0
-        self.fighter = 0
-        self.bomber = 0
         self.sub = 0
         self.destroyer = 0
+        self.fighter = 0
+        self.bomber = 0
         self.cruiser = 0
         self.carrier = 0
         self.battleship = 0
+        
+        self.battleshipHits = 0
         
         frame = tk.Frame(parent)
         frame.grid(row = 1, column = 1 if allyTeam else 3, sticky = "nsew")
@@ -41,9 +43,22 @@ class Player:
         
     def getUnitArray(self) -> [int]:
         
-        return [self.infantry, self.artillery, self.tank, self.fighter, \
-                    self.bomber, self.sub, self.destroyer, self.cruiser, \
-                    self.carrier, self.battleship]
+        return [self.infantry, self.artillery, self.tank, self.sub, \
+                self.destroyer, self.fighter, self.bomber,  self.cruiser, \
+                self.carrier, self.battleship]
+            
+    def setUnitArray(self, newUnitNums):
+        
+        self.infantry = newUnitNums[0]
+        self.artillery = newUnitNums[1]
+        self.tank = newUnitNums[2]
+        self.sub = newUnitNums[3]
+        self.destroyer = newUnitNums[4]
+        self.fighter = newUnitNums[5]
+        self.bomber = newUnitNums[6]
+        self.cruiser = newUnitNums[7]
+        self.carrier = newUnitNums[8]
+        self.battleship = newUnitNums[9]
     
     def numUnits(self) -> int:
         
@@ -58,13 +73,37 @@ class Player:
         hitValues = Player.attackingVals if attacking else Player.defendingVals
         
         unitArray = self.getUnitArray()
-                             
-        return sum([sum([1 if i else 0 for i in random.randint(1,6,size=numUnit) <= hitVal]) for numUnit, hitVal in zip(unitArray, hitValues)])
+                
+        return sum([sum([1 if i else 0 for i in random.randint(1,7,size=numUnit) <= hitVal]) for numUnit, hitVal in zip(unitArray, hitValues)])
                     
         
-    def handleHits(self, numHits: int):
+    def handleHits(self, numHits: int):        
+        # Battleships can take two hits, if one hasn't been hit yet. Use that one
+        while (self.battleshipHits < self.battleship):
+            
+            numHits -= 1
+            
+            self.battleshipHits += 1
+            
+        unitArray = self.getUnitArray()
+
+        for i, unitNum in enumerate(unitArray):
+            
+            if (unitNum > 0):
+                
+                diff = unitNum if numHits >= unitNum else numHits
+                
+                numHits -= diff
+                
+                unitArray[i] -= diff
+            
+            if (numHits == 0):
+                
+                break
         
-        pass
+        self.setUnitArray(unitArray)
+            
+        
 
 
 class UnitButtonAndCounter:
@@ -112,20 +151,21 @@ class UnitButtonAndCounter:
 
 def CalculateBattle(attacker: Player, defender: Player):
     
-    while (attacker.numUnits() and defender.numUnits()):
+    while (attacker.numUnits() != 0 and defender.numUnits() != 0):
         
         # Attacker attacks
-        #attAttacks = randint(1, 6, size=attacker.numUnits())
         attAttacks = attacker.getHits(True)
         
-        # Defender attacks
-        #defAttacks = randint(1, 6, size=defender.numUnits())
-        # Remove hits from both
+        # Defender attacks and remove hits from both
         attacker.handleHits(defender.getHits(False))
         defender.handleHits(attAttacks)
+        
+        break
     
-    pass
-    
+    print(attacker.getUnitArray())
+    print(attacker.numUnits())
+    print(defender.getUnitArray())
+    print(defender.numUnits())
     
         
      
