@@ -1,12 +1,15 @@
 import tkinter as tk
 from numpy import random
+from numpy import mean
+
 class Player:
     
     # Class wide variables giving the attacking value in order of increasing 
-    # unit cost grouped by unit type[infantry, artillery, tank, fighter, bomber,
-    # sub, destroyer, cruiser, aircraft carrier, battleship]
+    # unit cost [infantry, artillery, tank, sub, destroyer, fighter, bomber,
+    # cruiser, aircraft carrier, battleship]
     attackingVals = [1, 2, 3, 3, 4, 2, 2, 3, 1, 4]
     defendingVals = [2, 2, 3, 4, 1, 1, 2, 3, 2, 4]
+    costVals = [3, 4, 6, 6, 8, 10, 12, 12, 14, 20]
     
     def __init__(self, parent: tk.Frame, allyTeam: bool):
         
@@ -67,6 +70,10 @@ class Player:
     def getUnitHitArray(self, attacking: bool) -> [tuple]:
         
         unitArray = self.getUnitArray()
+        
+    def getCostOfUnits(self) -> int:
+        
+        return sum([numUnit * unitCost for numUnit, unitCost in zip(self.getUnitArray(), Player.costVals)])
         
     def getHits(self, attacking: bool) -> int:
         
@@ -151,21 +158,64 @@ class UnitButtonAndCounter:
 
 def CalculateBattle(attacker: Player, defender: Player):
     
-    while (attacker.numUnits() != 0 and defender.numUnits() != 0):
-        
-        # Attacker attacks
-        attAttacks = attacker.getHits(True)
-        
-        # Defender attacks and remove hits from both
-        attacker.handleHits(defender.getHits(False))
-        defender.handleHits(attAttacks)
-        
-        break
+    numAttackerWins = 0
     
-    print(attacker.getUnitArray())
-    print(attacker.numUnits())
-    print(defender.getUnitArray())
-    print(defender.numUnits())
+    numDefenderWins = 0
+    
+    attackSurvives = []
+    
+    attackSurvivesCost = []
+    
+    defenseSurvives = []
+    
+    defenseSurvivesCost = []
+    
+    numIterations = 100
+    
+    for i in range(numIterations):
+        
+        # Store the pre-battle troop amounts
+        attackerTroops = attacker.getUnitArray()
+        defenderTroops = defender.getUnitArray()
+        
+        # Battle loop
+        while (attacker.numUnits() != 0 and defender.numUnits() != 0):
+            
+            # Attacker attacks
+            attAttacks = attacker.getHits(True)
+            
+            # Defender attacks and remove hits from both
+            attacker.handleHits(defender.getHits(False))
+            defender.handleHits(attAttacks)
+            
+            # Check for ties?
+            
+            
+        if (attacker.numUnits() > 0): 
+            numAttackerWins += 1
+            attackSurvives.append(attacker.getUnitArray())
+            attackSurvivesCost.append(attacker.getCostOfUnits())
+        
+        else: 
+            numDefenderWins += 1
+            defenseSurvives.append(defender.getUnitArray())
+            defenseSurvivesCost.append(defender.getCostOfUnits())
+            
+        # Restore units to what they were pre-battle for next iteration
+        attacker.setUnitArray(attackerTroops)
+        defender.setUnitArray(defenderTroops)
+        
+    
+    print(numAttackerWins / numIterations)
+    print(numDefenderWins / numIterations)
+    
+    print(mean(attackSurvives, axis = 0))
+    print(mean(defenseSurvives, axis = 0))
+    
+    print(mean(attackSurvivesCost))
+    print(mean(defenseSurvivesCost))
+    
+    
     
         
      
