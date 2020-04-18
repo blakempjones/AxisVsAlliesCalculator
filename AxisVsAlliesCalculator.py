@@ -2,6 +2,12 @@ import tkinter as tk
 from numpy import random
 class Player:
     
+    # Class wide variables giving the attacking value in order of increasing 
+    # unit cost grouped by unit type[infantry, artillery, tank, fighter, bomber,
+    # sub, destroyer, cruiser, aircraft carrier, battleship]
+    attackingVals = [1, 2, 3, 3, 4, 2, 2, 3, 1, 4]
+    defendingVals = [2, 2, 3, 4, 1, 1, 2, 3, 2, 4]
+    
     def __init__(self, parent: tk.Frame, allyTeam: bool):
         
         self.team = "ALLIES" if allyTeam else "AXIS"
@@ -33,29 +39,32 @@ class Player:
         self.carrierBtn = UnitButtonAndCounter(frame, self.imageFolder + "Carrier.png", 9, self, 'carrier', allyTeam)
         self.battleshipBtn = UnitButtonAndCounter(frame, self.imageFolder + "Battleship.png", 10, self, 'battleship', allyTeam)
         
-        def hasUnits(self) -> bool:
-            
-            return any([self.infantry, self.artillery, self.tank, self.fighter, \
-                        self.bomber, self.sub, self.destroyer, self.cruiser, \
-                        self.carrier, self.battleship])
-                
-        def numUnits(self) -> int:
-            
-            return sum([self.infantry, self.artillery, self.tank, self.fighter, \
-                        self.bomber, self.sub, self.destroyer, self.cruiser, \
-                        self.carrier, self.battleship])
-                
-        def getUnitHitArray(attacking: bool) -> [tuple]:
-            
-            pass
+    def getUnitArray(self) -> [int]:
         
-        def getHits(self, attacking) -> int:
-            
-            pass
+        return [self.infantry, self.artillery, self.tank, self.fighter, \
+                    self.bomber, self.sub, self.destroyer, self.cruiser, \
+                    self.carrier, self.battleship]
+    
+    def numUnits(self) -> int:
         
-        def handleHits(self, numHits: int):
+        return sum(self.getUnitArray())
             
-            pass
+    def getUnitHitArray(self, attacking: bool) -> [tuple]:
+        
+        unitArray = self.getUnitArray()
+        
+    def getHits(self, attacking: bool) -> int:
+        
+        hitValues = Player.attackingVals if attacking else Player.defendingVals
+        
+        unitArray = self.getUnitArray()
+                             
+        return sum([sum([1 if i else 0 for i in random.randint(1,6,size=numUnit) <= hitVal]) for numUnit, hitVal in zip(unitArray, hitValues)])
+                    
+        
+    def handleHits(self, numHits: int):
+        
+        pass
 
 
 class UnitButtonAndCounter:
@@ -103,7 +112,7 @@ class UnitButtonAndCounter:
 
 def CalculateBattle(attacker: Player, defender: Player):
     
-    while (attacker.hasUnits() and defender.hasUnits()):
+    while (attacker.numUnits() and defender.numUnits()):
         
         # Attacker attacks
         #attAttacks = randint(1, 6, size=attacker.numUnits())
@@ -126,7 +135,7 @@ root = tk.Tk()
 attacker = Player(root, True)
 defender = Player(root, False)
 
-calcButton = tk.Button(root, text = "CALCULATE", font = "TkFixedFont 32", command = lambda: CalculateBattle(ally, axis))
+calcButton = tk.Button(root, text = "CALCULATE", font = "TkFixedFont 32", command = lambda: CalculateBattle(attacker, defender))
 calcButton.grid(row=1,column=2)
 
 root.mainloop()
