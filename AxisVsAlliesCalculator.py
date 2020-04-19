@@ -1,6 +1,14 @@
 import tkinter as tk
 from numpy import random
 from numpy import mean
+from math import floor
+
+import numpy as np
+import seaborn as sns
+from matplotlib.backend_bases import key_press_handler
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from matplotlib import pyplot
 
 class Player:
     
@@ -17,6 +25,7 @@ class Player:
         
         self.imageFolder = r"C:\\Users\\TheMainframe\\Documents\\Code\\Personal\\AxisVsAlliesCalculator\\Images\\" + self.team + "\\"
         
+        # Unit type counts
         self.infantry = 0
         self.artillery = 0
         self.tank = 0
@@ -28,11 +37,14 @@ class Player:
         self.carrier = 0
         self.battleship = 0
         
+        # Tracks number of battleship hits to allow for them to take two hits
         self.battleshipHits = 0
         
+        # Class holder frame and placement in root
         frame = tk.Frame(parent)
         frame.grid(row = 1, column = 1 if allyTeam else 3, sticky = "nsew")
         
+        # Add/Subtract buttons of each unit type (left click / right click)
         self.infantryBtn = UnitButtonAndCounter(frame, self.imageFolder + "Infantry.png", 1, self, 'infantry', allyTeam)
         self.artilleryBtn = UnitButtonAndCounter(frame, self.imageFolder + "Artillery.png", 2, self, 'artillery', allyTeam)
         self.tankBtn = UnitButtonAndCounter(frame, self.imageFolder + "Tank.png", 3, self, 'tank', allyTeam)
@@ -43,15 +55,18 @@ class Player:
         self.cruiserBtn = UnitButtonAndCounter(frame, self.imageFolder + "Cruiser.png", 8, self, 'cruiser', allyTeam)
         self.carrierBtn = UnitButtonAndCounter(frame, self.imageFolder + "Carrier.png", 9, self, 'carrier', allyTeam)
         self.battleshipBtn = UnitButtonAndCounter(frame, self.imageFolder + "Battleship.png", 10, self, 'battleship', allyTeam)
+        #---------------------------------------------------------------------#
         
     def getUnitArray(self) -> [int]:
         
+        # Returns list of unit amounts in order of unit cost
         return [self.infantry, self.artillery, self.tank, self.sub, \
                 self.destroyer, self.fighter, self.bomber,  self.cruiser, \
                 self.carrier, self.battleship]
             
     def setUnitArray(self, newUnitNums):
         
+        # Sets unit amounts given array of new amounts in order of unit cost
         self.infantry = newUnitNums[0]
         self.artillery = newUnitNums[1]
         self.tank = newUnitNums[2]
@@ -111,8 +126,6 @@ class Player:
         self.setUnitArray(unitArray)
             
         
-
-
 class UnitButtonAndCounter:
     
     def __init__(self, parent: tk.Frame, photoPath: str, row: int, player, unitName, allyTeam: bool):
@@ -133,99 +146,177 @@ class UnitButtonAndCounter:
         def incrementUnit(e):
             
             numUnit = getattr(player, unitName) + 1
-            
             setattr(player,unitName, numUnit)
-        
             self.unitCount.config(text = str(numUnit))
         
         def decrementUnit(e):
             
             self.button.config(relief = tk.SUNKEN)
-            
             numUnit = getattr(player, unitName)
-            
             numUnit = 0 if numUnit <= 1 else numUnit - 1
-            
+            setattr(player,unitName, numUnit)          
+            self.button.after(120, lambda: self.button.config(relief=tk.RAISED))
             self.unitCount.config(text = str(numUnit))
-            
-            self.button.after(200, lambda: self.button.config(relief=tk.RAISED))
             
                               
         self.button.bind('<Button-1>', incrementUnit)
         
         self.button.bind('<Button-3>', decrementUnit)
         
+class Results:
 
-def CalculateBattle(attacker: Player, defender: Player):
+    def __init__(self, parent, attacker: Player, defender: Player):
+        
+        # Group frame
+        frame = tk.Frame(parent)
+        frame.grid(row=1, column=2)
+        
+        # Holds references to the armies
+        self.attacker = attacker
+        self.defender = defender
+        
+        # Initializes the stats holder
+        self.resultsDict = {
+            'attackerWinProb': 0,
+            'defenderWinProb': 0,
+            'drawProb': 0,
+            'attackSurvivesCost': [],
+            'defenseSurvivesCost': [],
+            'meanAttackSurvives': 0,
+            'meanDefenseSurvives': 0
+            }
+        
+        # Initializes the number of units graph
+        initialFigure = self.graphCostResults()
+        self.canvas = FigureCanvasTkAgg(initialFigure, master=frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().grid(row=2, column=1, columnspan=3)
+        
+        # Binds click events in the root widget to click handler (unfortunate
+        # but without signalling, probably the best solution)
+        parent.bind('<Button-1>', self.handleClick)
+        parent.bind('<Button-3>', self.handleClick)
+        
+        # Win/loss probability display
+        resultsTopFrame = tk.Frame(frame)
+        # Attacker
+        tk.Label(resultsTopFrame, text = "Attacker Win: ", font = "TkFixedFont 22").grid(row=1,column=1)
+        self.attackerProbLabel = tk.Label(resultsTopFrame, text = "N/A", font = "TkFixedFont 22")
+        self.attackerProbLabel.grid(row=1,column=2)        
+        # Defender
+        tk.Label(resultsTopFrame, text = "Defender Win: ", font = "TkFixedFont 22").grid(row=2,column=1)
+        self.defenderProbLabel = tk.Label(resultsTopFrame, text = "N/A", font = "TkFixedFont 22")
+        self.defenderProbLabel.grid(row=2,column=2)
+        # Draw
+        tk.Label(resultsTopFrame, text = "Draw: ", font = "TkFixedFont 22").grid(row=3,column=1)
+        self.drawProbLabel = tk.Label(resultsTopFrame, text = "N/A", font = "TkFixedFont 22")
+        self.drawProbLabel.grid(row=3,column=2)
+        resultsTopFrame.grid(row=1,column=2)
+        # -------------------------------------------------------------------#
+        
+        
+    def handleClick(self, e):
+        
+        # Calculates and displays new statistics
+        self.redrawGraph()
+        
+        # Updates probability labels        
+        self.attackerProbLabel.config(text=str(self.resultsDict['attackerWinProb']) + "%", fg = 'green' if self.resultsDict['attackerWinProb'] > 50 else 'red')
+        self.defenderProbLabel.config(text=str(self.resultsDict['defenderWinProb']) + "%", fg = 'green' if self.resultsDict['defenderWinProb'] > 50 else 'red')
+        self.drawProbLabel.config(text=str(self.resultsDict['drawProb']) + "%")
+                
+        
+    def graphCostResults(self) -> Figure:#, attackSurvivesCost, defenseSurvivesCost) -> Figure:
+        
+        # Makes matplotlib figure, plots the two histograms on the axes and returns the figure for canvas display
+        figure = Figure()
+        ax = figure.subplots()
+        sns.distplot(self.resultsDict['attackSurvivesCost'], norm_hist=True, hist=False, kde=True, ax=ax)#kde=False, ax=ax) # # kde=False, ax=ax)
+        sns.distplot(self.resultsDict['defenseSurvivesCost'], norm_hist=True, hist=False, kde=True, ax=ax)# kde=False, ax=ax)#hist=False, norm_hist=True, kde=True, ax=ax)
+        return figure
     
-    numAttackerWins = 0
-    
-    numDefenderWins = 0
-    
-    attackSurvives = []
-    
-    attackSurvivesCost = []
-    
-    defenseSurvives = []
-    
-    defenseSurvivesCost = []
-    
-    numIterations = 100
-    
-    for i in range(numIterations):
+    def redrawGraph(self):
+        
+        # Calculates battle statistics for the current unit numbers
+        self.resultsDict = self.CalculateBattle()
+        
+        # Redraws the graph
+        self.canvas.figure = self.graphCostResults()
+        self.canvas.draw()
+
+    def CalculateBattle(self) -> {}:#, attacker: Player, defender: Player) -> {}:
+        
+        # Stats to be calculated        
+        numAttackerWins = 0        
+        numDefenderWins = 0        
+        numDraws = 0        
+        attackSurvives = []        
+        attackSurvivesCost = []        
+        defenseSurvives = []        
+        defenseSurvivesCost = []
+
+        # Num simulations to run        
+        numIterations = 300
         
         # Store the pre-battle troop amounts
-        attackerTroops = attacker.getUnitArray()
-        defenderTroops = defender.getUnitArray()
+        attackerTroops = attacker.getUnitArray().copy()
+        defenderTroops = defender.getUnitArray().copy()
         
-        # Battle loop
-        while (attacker.numUnits() != 0 and defender.numUnits() != 0):
+        # Simulation loop
+        for i in range(numIterations):            
             
-            # Attacker attacks
-            attAttacks = attacker.getHits(True)
+            # Battle loop
+            while (attacker.numUnits() != 0 and defender.numUnits() != 0):
+                
+                # Attacker attacks
+                attAttacks = self.attacker.getHits(True)
+                
+                # Defender attacks and remove hits from both
+                self.attacker.handleHits(self.defender.getHits(False))
+                self.defender.handleHits(attAttacks)
+                
+            if (self.attacker.numUnits() > 0): 
+                numAttackerWins += 1
+                attackSurvives.append(attacker.getUnitArray())
+                attackSurvivesCost.append(attacker.getCostOfUnits())
             
-            # Defender attacks and remove hits from both
-            attacker.handleHits(defender.getHits(False))
-            defender.handleHits(attAttacks)
+            elif (self.defender.numUnits() > 0): 
+                numDefenderWins += 1
+                defenseSurvives.append(defender.getUnitArray())
+                defenseSurvivesCost.append(defender.getCostOfUnits())
+                
+            else:
             
-            # Check for ties?
-            
-            
-        if (attacker.numUnits() > 0): 
-            numAttackerWins += 1
-            attackSurvives.append(attacker.getUnitArray())
-            attackSurvivesCost.append(attacker.getCostOfUnits())
+                numDraws += 1
+                
+            # Restore units to what they were pre-battle for next iteration
+            self.attacker.setUnitArray(attackerTroops)
+            self.defender.setUnitArray(defenderTroops)
         
-        else: 
-            numDefenderWins += 1
-            defenseSurvives.append(defender.getUnitArray())
-            defenseSurvivesCost.append(defender.getCostOfUnits())
-            
-        # Restore units to what they were pre-battle for next iteration
-        attacker.setUnitArray(attackerTroops)
-        defender.setUnitArray(defenderTroops)
+        # Output is used to overwrite self.resultsDict
+        return {
+            'attackerWinProb': floor(numAttackerWins * 100 / numIterations),
+            'defenderWinProb': floor(numDefenderWins * 100 / numIterations),
+            'drawProb': floor(numDraws * 100 / numIterations),
+            'attackSurvivesCost': attackSurvivesCost,
+            'defenseSurvivesCost': defenseSurvivesCost,
+            'meanAttackSurvives': mean(attackSurvives,axis=0),
+            'meanDefenseSurvives': mean(defenseSurvives,axis=0)
+            }
+
+
+def displayAverageSurvival():
         
-    
-    print(numAttackerWins / numIterations)
-    print(numDefenderWins / numIterations)
-    
-    print(mean(attackSurvives, axis = 0))
-    print(mean(defenseSurvives, axis = 0))
-    
-    print(mean(attackSurvivesCost))
-    print(mean(defenseSurvivesCost))
-    
-    
-    
-        
-     
-        
+     pass
+ 
+
+sns.set()  
 root = tk.Tk()
 
 attacker = Player(root, True)
 defender = Player(root, False)
-
-calcButton = tk.Button(root, text = "CALCULATE", font = "TkFixedFont 32", command = lambda: CalculateBattle(attacker, defender))
-calcButton.grid(row=1,column=2)
+results = Results(root, attacker, defender)
+#calcButton = tk.Button(root, text = "CALCULATE", font = "TkFixedFont 32", command = lambda: CalculateBattle(attacker, defender))
+#calcButton.grid(row=1,column=2)
 
 root.mainloop()
