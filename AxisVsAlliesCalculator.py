@@ -7,6 +7,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib import rc
 from matplotlib.figure import Figure
 from matplotlib import pyplot
 
@@ -15,8 +16,8 @@ class Player:
     # Class wide variables giving the attacking value in order of increasing 
     # unit cost [infantry, artillery, tank, sub, destroyer, fighter, bomber,
     # cruiser, aircraft carrier, battleship]
-    attackingVals = [1, 2, 3, 3, 4, 2, 2, 3, 1, 4]
-    defendingVals = [2, 2, 3, 4, 1, 1, 2, 3, 2, 4]
+    attackingVals = [1, 2, 3, 2, 2, 3, 4, 3, 1, 4]
+    defendingVals = [2, 2, 3, 1, 2, 4, 1, 3, 2, 4]
     costVals = [3, 4, 6, 6, 8, 10, 12, 12, 14, 20]
     
     def __init__(self, parent: tk.Frame, allyTeam: bool):
@@ -95,7 +96,16 @@ class Player:
         hitValues = Player.attackingVals if attacking else Player.defendingVals
         
         unitArray = self.getUnitArray()
-                
+        
+        # Has artillery and infantry and is attacking
+        if (attacking and unitArray[0] > 0 and unitArray[1] > 0):
+            
+            # Count the infantry as artillery for the number of artillery units 
+            # present (infantry-artillery support bonus)
+            numInf = unitArray[0]
+            unitArray[0] -= min(unitArray[1], unitArray[0])
+            unitArray[1] += min(unitArray[1], numInf)
+            
         return sum([sum([1 if i else 0 for i in random.randint(1,7,size=numUnit) <= hitVal]) for numUnit, hitVal in zip(unitArray, hitValues)])
                     
         
@@ -170,6 +180,7 @@ class Results:
         # Group frame
         frame = tk.Frame(parent)
         frame.grid(row=1, column=2)
+        frame.grid_rowconfigure(2,weight=1)
         
         # Holds references to the armies
         self.attacker = attacker
@@ -183,7 +194,9 @@ class Results:
             'attackSurvivesCost': [],
             'defenseSurvivesCost': [],
             'meanAttackSurvives': 0,
-            'meanDefenseSurvives': 0
+            'meanDefenseSurvives': 0,
+            'numAttackSurvivors': [],
+            'numDefenseSurvivors': []
             }
         
         # Initializes the number of units graph
@@ -226,13 +239,18 @@ class Results:
         self.drawProbLabel.config(text=str(self.resultsDict['drawProb']) + "%")
                 
         
-    def graphCostResults(self) -> Figure:#, attackSurvivesCost, defenseSurvivesCost) -> Figure:
+    def graphCostResults(self) -> Figure:
         
         # Makes matplotlib figure, plots the two histograms on the axes and returns the figure for canvas display
         figure = Figure()
+        # Matches Tkinter gray background
+        figure.set_facecolor((0.94118, 0.94118, 0.92941))
+        # Prevents the axis labels from getting cut-off
+        figure.subplots_adjust(left=0.2, bottom=0.15)
         ax = figure.subplots()
-        sns.distplot(self.resultsDict['attackSurvivesCost'], norm_hist=True, hist=False, kde=True, ax=ax)#kde=False, ax=ax) # # kde=False, ax=ax)
-        sns.distplot(self.resultsDict['defenseSurvivesCost'], norm_hist=True, hist=False, kde=True, ax=ax)# kde=False, ax=ax)#hist=False, norm_hist=True, kde=True, ax=ax)
+        ax.set(xlabel="Number of surviving units", ylabel="Probability")
+        sns.distplot(self.resultsDict['numAttackSurvivors'], norm_hist=True, hist=False, kde=True, ax=ax)
+        sns.distplot(self.resultsDict['numDefenseSurvivors'], norm_hist=True, hist=False, kde=True, ax=ax)
         return figure
     
     def redrawGraph(self):
@@ -254,7 +272,8 @@ class Results:
         attackSurvivesCost = []        
         defenseSurvives = []        
         defenseSurvivesCost = []
-
+        numAttackSurvivors = []
+        numDefenseSurvivors = []
         # Num simulations to run        
         numIterations = 300
         
@@ -274,17 +293,21 @@ class Results:
                 # Defender attacks and remove hits from both
                 self.attacker.handleHits(self.defender.getHits(False))
                 self.defender.handleHits(attAttacks)
-                
+            
+            # Attacker wins
             if (self.attacker.numUnits() > 0): 
                 numAttackerWins += 1
                 attackSurvives.append(attacker.getUnitArray())
                 attackSurvivesCost.append(attacker.getCostOfUnits())
+                numAttackSurvivors.append(attacker.numUnits())
             
+            # Defender wins
             elif (self.defender.numUnits() > 0): 
                 numDefenderWins += 1
                 defenseSurvives.append(defender.getUnitArray())
                 defenseSurvivesCost.append(defender.getCostOfUnits())
-                
+                numDefenseSurvivors.append(defender.numUnits())
+            # Both armies lost all units 
             else:
             
                 numDraws += 1
@@ -301,22 +324,21 @@ class Results:
             'attackSurvivesCost': attackSurvivesCost,
             'defenseSurvivesCost': defenseSurvivesCost,
             'meanAttackSurvives': mean(attackSurvives,axis=0),
-            'meanDefenseSurvives': mean(defenseSurvives,axis=0)
+            'meanDefenseSurvives': mean(defenseSurvives,axis=0),
+            'numAttackSurvivors': numAttackSurvivors,
+            'numDefenseSurvivors': numDefenseSurvivors
             }
-
-
-def displayAverageSurvival():
-        
-     pass
  
 
-sns.set()  
+sns.set(font_scale=1.8, rc=rc('font', weight='bold'))
+pyplot.rcParams["font.weight"] = "bold"
+pyplot.rcParams["axes.labelweight"] = "bold"
+
 root = tk.Tk()
 
 attacker = Player(root, True)
 defender = Player(root, False)
 results = Results(root, attacker, defender)
-#calcButton = tk.Button(root, text = "CALCULATE", font = "TkFixedFont 32", command = lambda: CalculateBattle(attacker, defender))
-#calcButton.grid(row=1,column=2)
+
 
 root.mainloop()
