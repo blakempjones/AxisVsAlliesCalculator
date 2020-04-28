@@ -36,7 +36,7 @@ class Player:
         """ 
         # Points to image folder
         self.team = "ALLIES" if allyTeam else "AXIS"
-        self.imageFolder = r"C:\\Users\\TheMainframe\\Documents\\Code\\Personal\\AxisVsAlliesCalculator\\Images\\" + self.team + "\\"
+        self.imageFolder =  r"Images\\" + self.team + "\\" 
         
         # Unit type counts
         self.infantry = 0
